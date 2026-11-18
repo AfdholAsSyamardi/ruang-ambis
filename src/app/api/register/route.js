@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 import pool from "../../../lib/db";
 
 export async function POST(request) {
@@ -19,14 +20,14 @@ export async function POST(request) {
       );
     }
 
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const statusAwal = registerAs === "teacher" ? "pending" : "active";
-
     const roleAwal = "student";
-
+    
     await pool.query(
       "INSERT INTO users (username, email, password, role, status) VALUES ($1, $2, $3, $4, $5)",
-      [username, email, password, roleAwal, statusAwal]
+      [username, email, hashedPassword, roleAwal, statusAwal]
     );
 
     const pesanSukses = registerAs === "teacher"
@@ -35,7 +36,6 @@ export async function POST(request) {
 
     return NextResponse.json({ message: pesanSukses }, { status: 201 });
   } catch (error) {
-
     if (error.code === "23505") {
       return NextResponse.json(
         { message: "Email sudah terdaftar. Gunakan email lain." },

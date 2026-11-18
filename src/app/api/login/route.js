@@ -1,6 +1,7 @@
-// src/app/api/login/route.js
 import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 import pool from "../../../lib/db";
+import { encrypt } from "../../../lib/session";
 
 export async function POST(request) {
   try {
@@ -11,11 +12,17 @@ export async function POST(request) {
       [email]
     );
 
-    if (result.rows.length === 0) return NextResponse.json({ message: "Email tidak ditemukan." }, { status: 401 });
+    if (result.rows.length === 0) {
+      return NextResponse.json({ message: "Email tidak ditemukan." }, { status: 401 });
+    }
 
     const user = result.rows[0];
 
-    if (user.password !== password) return NextResponse.json({ message: "Password salah." }, { status: 401 });
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordValid) {
+      return NextResponse.json({ message: "Password salah." }, { status: 401 });
+    }
 
     const sessionData = {
       id: user.id,
@@ -26,16 +33,20 @@ export async function POST(request) {
       approved_at: user.approved_at,
     };
 
+    const token = await encrypt(sessionData);
+
     const response = NextResponse.json({ message: "Login berhasil!" }, { status: 200 });
 
-    response.cookies.set("ruangambis_session", JSON.stringify(sessionData), {
+    response.cookies.set("ruangambis_session", token, {
       httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
       path: "/",
       maxAge: 60 * 60 * 24, 
     });
 
     return response;
   } catch (error) {
+    console.error("Error Login:", error);
     return NextResponse.json({ message: "Terjadi kesalahan server." }, { status: 500 });
   }
 }
